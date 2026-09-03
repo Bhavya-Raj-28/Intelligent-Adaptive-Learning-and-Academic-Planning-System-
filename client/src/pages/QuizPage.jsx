@@ -18,9 +18,10 @@ export default function QuizPage() {
       const user = JSON.parse(localStorage.getItem("user"));
 
       if (!user || !user.id) {
-        alert("Please login again.");
-        return;
-      }
+  alert("Please login again.");
+  setLoading(false);
+  return;
+}
 
       console.log("===== REQUESTING QUIZ =====");
 
@@ -33,9 +34,10 @@ export default function QuizPage() {
       // Backend returns:
       // { success: true, quiz: { questions: [...] } }
 
-      const generatedQuestions = res.data.quiz?.questions || [];
+     const generatedQuestions = res.data.quiz?.questions || [];
 
-      setQuestions(generatedQuestions);
+setQuestions(generatedQuestions);
+setLoading(false);
 
     } catch (err) {
   console.error("QUIZ ERROR:", err);
@@ -203,14 +205,23 @@ export default function QuizPage() {
                     {index + 1}. {question.question}
                   </p>
 
-                  <p className="text-green-400 mt-2">
-                    ✅ Correct Answer: {question.answer}
-                  </p>
+                  {selected[index] === question.answer ? (
+  <p className="text-green-400 mt-2">
+    ✅ Correct
+  </p>
+) : (
+  <p className="text-red-400 mt-2">
+    ❌ Incorrect
+  </p>
+)}
 
-                  <p className="text-slate-400 mt-1">
-                    Your Answer:{" "}
-                    {selected[index] || "Not answered"}
-                  </p>
+<p className="text-slate-400 mt-1">
+  Your Answer: {selected[index] || "Not answered"}
+</p>
+
+<p className="text-green-400 mt-1">
+  Correct Answer: {question.answer}
+</p>
 
                 </div>
 
