@@ -1,11 +1,16 @@
+
 const { GoogleGenAI } = require("@google/genai");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-const plannerAgent = async (profile) => {
-
+const plannerAgent = async (
+  profile,
+  weakestSubject,
+  weakestTopic,
+  taskProgress
+) => {
   console.log("===== CALLING GEMINI PLANNER =====");
 
   const subjects = Array.isArray(profile.subjects)
@@ -18,17 +23,128 @@ const plannerAgent = async (profile) => {
 
   const studyHours = Number(profile.studyHours) || 2;
 
-  const prompt = `
-Create a personalized 7-day study timetable.
+  const performanceInformation = `
+Previous quiz performance:
 
-STUDENT:
-Department: ${profile.department}
-Semester: ${profile.semester}
-Goal: ${profile.goal}
-Daily study hours: ${studyHours}
-Learning style: ${profile.learningStyle}
-Subjects: ${subjects}
-Weak subjects: ${weakSubjects}
+Weakest Subject:
+${
+  weakestSubject
+    ? `${weakestSubject.subject} (${Math.round(
+        weakestSubject.average
+      )}%)`
+    : "No previous quiz data"
+}
+
+Weakest Topic:
+${
+  weakestTopic
+    ? `${weakestTopic.topic} (${Math.round(
+        weakestTopic.average
+      )}%)`
+    : "No previous quiz data"
+}
+`;
+
+  const completedTasks =
+    taskProgress?.completedTasks?.length > 0
+      ? taskProgress.completedTasks
+          .map(
+            (task) =>
+              `- ${task.subject} | ${task.topic} | ${task.task}`
+          )
+          .join("\n")
+      : "No completed study tasks yet.";
+
+  const pendingTasks =
+    taskProgress?.pendingTasks?.length > 0
+      ? taskProgress.pendingTasks
+          .map(
+            (task) =>
+              `- ${task.subject} | ${task.topic} | ${task.task}`
+          )
+          .join("\n")
+      : "No pending study tasks.";
+
+  const taskProgressInformation = `
+PREVIOUS STUDY TASK PROGRESS:
+
+Completed Tasks:
+${completedTasks}
+
+Pending Tasks:
+${pendingTasks}
+`;
+
+  const prompt = `
+Create a personalized 7-day study timetable for a university student.
+
+STUDENT PROFILE:
+
+Department:
+${profile.department || "Not specified"}
+
+Semester:
+${profile.semester || "Not specified"}
+
+Goal:
+${profile.goal || "Not specified"}
+
+Daily study hours:
+${studyHours}
+
+Learning style:
+${profile.learningStyle || "Not specified"}
+
+Subjects:
+${subjects}
+
+Weak subjects from student profile:
+${weakSubjects}
+
+${performanceInformation}
+
+${taskProgressInformation}
+
+ADAPTIVE PLANNING RULES:
+
+1. Use the student's profile to select relevant subjects and topics.
+
+2. If previous quiz performance is available, prioritize the weakest subject.
+
+3. If a weakest topic is available, give special attention to that topic.
+
+4. Weak areas should receive more study time and higher priority.
+
+5. Consider previous study-task progress when creating the new plan.
+
+6. Do not simply repeat study tasks that the student has already completed.
+
+7. If a task is pending, consider including it again when it is still relevant.
+
+8. Completed tasks should be treated as already covered unless the student is still weak in that topic according to quiz performance.
+
+9. Use completed tasks to understand what the student has already studied.
+
+10. Use pending tasks to identify unfinished work that may need attention.
+
+11. Do not create a timetable using unrelated subjects.
+
+12. Respect the student's daily study hours.
+
+13. Consider the student's learning style when creating tasks.
+
+14. Include a mixture of:
+   - Concept learning
+   - Revision
+   - Practice
+   - Problem solving
+   - Self-testing
+
+15. The plan should help the student improve weak areas while maintaining other subjects.
+
+16. If there is no previous quiz data, use the student's profile and weak subjects to decide priorities.
+
+17. If there is no previous task history, create the plan normally using the student's profile and quiz performance.
 
 You MUST create exactly 7 timetable rows.
 
@@ -43,22 +159,8 @@ topic
 task
 priority
 
-Example of a valid row:
-
-{
-  "day": "Day 1",
-  "time": "8:00 AM - 10:00 AM",
-  "subject": "Deep Learning",
-  "topic": "Neural Networks and Backpropagation",
-  "task": "Study concepts and draw the neural network architecture",
-  "priority": "High"
-}
-
-Do NOT leave any field empty.
-
-Give weak subjects more priority.
-
 The timetable MUST contain:
+
 Day 1
 Day 2
 Day 3
@@ -67,6 +169,14 @@ Day 5
 Day 6
 Day 7
 
+Do NOT leave any field empty.
+
+Priority must be one of:
+
+High
+Medium
+Low
+
 After the timetable, provide:
 
 priorityTopics
@@ -74,132 +184,209 @@ topicsToRevise
 practiceRecommendations
 studyTips
 
-RETURN ONLY THIS JSON STRUCTURE:
+Return ONLY valid JSON.
+
+Use exactly this structure:
 
 {
   "timetable": [
     {
       "day": "Day 1",
       "time": "8:00 AM - 10:00 AM",
-      "subject": "Deep Learning",
-      "topic": "Neural Networks",
-      "task": "Study and practice",
-      "priority": "High"
-    },
-    {
-      "day": "Day 2",
-      "time": "8:00 AM - 10:00 AM",
-      "subject": "CNS",
-      "topic": "Cryptography",
-      "task": "Study encryption techniques",
-      "priority": "High"
-    },
-    {
-      "day": "Day 3",
-      "time": "8:00 AM - 10:00 AM",
-      "subject": "DBMS",
-      "topic": "Normalization",
-      "task": "Practice normalization problems",
-      "priority": "Medium"
-    },
-    {
-      "day": "Day 4",
-      "time": "8:00 AM - 10:00 AM",
-      "subject": "NLP",
-      "topic": "Text Processing",
-      "task": "Study preprocessing techniques",
-      "priority": "Medium"
-    },
-    {
-      "day": "Day 5",
-      "time": "8:00 AM - 10:00 AM",
-      "subject": "Math",
-      "topic": "Linear Algebra",
-      "task": "Practice eigenvalues and eigenvectors",
-      "priority": "Medium"
-    },
-    {
-      "day": "Day 6",
-      "time": "8:00 AM - 10:00 AM",
-      "subject": "Deep Learning",
-      "topic": "CNN",
-      "task": "Practice CNN architecture problems",
-      "priority": "High"
-    },
-    {
-      "day": "Day 7",
-      "time": "8:00 AM - 10:00 AM",
-      "subject": "CNS",
-      "topic": "Network Security",
-      "task": "Revise and solve practice questions",
+      "subject": "Subject",
+      "topic": "Specific Topic",
+      "task": "Study task",
       "priority": "High"
     }
   ],
   "priorityTopics": [
-    "Example topic"
+    "Topic 1",
+    "Topic 2"
   ],
   "topicsToRevise": [
-    "Example revision topic"
+    "Topic 1",
+    "Topic 2"
   ],
   "practiceRecommendations": [
-    "Example practice recommendation"
+    "Recommendation 1",
+    "Recommendation 2"
   ],
   "studyTips": [
-    "Example study tip"
+    "Study tip 1",
+    "Study tip 2"
   ]
 }
 
 IMPORTANT:
-Replace the example content with content based on the actual student profile.
 
-Return ONLY JSON.
+- Exactly 7 timetable rows.
+- Use Day 1 through Day 7 exactly once.
+- Every timetable row must contain all six fields.
+- Prioritize the weakest subject.
+- Prioritize the weakest topic when available.
+- Consider completed and pending study tasks.
+- Avoid unnecessarily repeating completed tasks.
+- Continue relevant pending tasks when appropriate.
+- Use subjects from the student's profile whenever possible.
+- Do not invent unrelated academic subjects.
+- Make topics specific.
+- Make tasks actionable.
+- Adapt the plan to the student's daily study hours.
+- Consider the student's learning style.
+- Return ONLY JSON.
 `;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3.6-flash",
-    contents: prompt,
-  });
-
-  let text = response.text.trim();
-
-  console.log("===== RAW GEMINI RESPONSE =====");
-  console.log(text);
-
-  // Remove markdown fences if Gemini adds them
-  text = text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
-  let plan;
-
   try {
-    plan = JSON.parse(text);
+    let response;
+
+    // Retry temporary Gemini 503 errors
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(
+          `===== GEMINI PLANNER ATTEMPT ${attempt} =====`
+        );
+
+        const startTime = Date.now();
+
+        response = await ai.models.generateContent({
+          model: "gemini-3.6-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+          },
+        });
+
+        console.log(
+          `===== GEMINI PLANNER RESPONSE TIME: ${
+            (Date.now() - startTime) / 1000
+          }s =====`
+        );
+
+        break;
+      } catch (error) {
+        console.error(
+          `Gemini planner attempt ${attempt} failed:`,
+          error.status
+        );
+
+        if (
+          error.status !== 503 ||
+          attempt === 3
+        ) {
+          throw error;
+        }
+
+        console.log(
+          "Gemini temporarily unavailable. Retrying in 3 seconds..."
+        );
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, 3000)
+        );
+      }
+    }
+
+    let text = response.text.trim();
+
+    console.log("===== RAW GEMINI RESPONSE =====");
+    console.log(text);
+
+    text = text
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+
+    let plan;
+
+    try {
+      plan = JSON.parse(text);
+    } catch (error) {
+      console.error("===== JSON PARSE ERROR =====");
+      console.error(error);
+      console.error("Gemini returned:", text);
+
+      throw new Error(
+        "Gemini returned an invalid study plan format"
+      );
+    }
+
+    if (
+      !plan.timetable ||
+      !Array.isArray(plan.timetable) ||
+      plan.timetable.length !== 7
+    ) {
+      throw new Error(
+        "Gemini did not generate exactly 7 timetable rows"
+      );
+    }
+
+    plan.timetable.forEach((item, index) => {
+      const requiredFields = [
+        "day",
+        "time",
+        "subject",
+        "topic",
+        "task",
+        "priority",
+      ];
+
+      requiredFields.forEach((field) => {
+        if (!item[field]) {
+          throw new Error(
+            `Timetable row ${index + 1} is missing ${field}`
+          );
+        }
+      });
+    });
+
+    if (!Array.isArray(plan.priorityTopics)) {
+      throw new Error(
+        "Priority topics are missing"
+      );
+    }
+
+    if (!Array.isArray(plan.topicsToRevise)) {
+      throw new Error(
+        "Topics to revise are missing"
+      );
+    }
+
+    if (
+      !Array.isArray(
+        plan.practiceRecommendations
+      )
+    ) {
+      throw new Error(
+        "Practice recommendations are missing"
+      );
+    }
+
+    if (!Array.isArray(plan.studyTips)) {
+      throw new Error(
+        "Study tips are missing"
+      );
+    }
+
+    console.log(
+      "===== TIMETABLE VALIDATED ====="
+    );
+
+    console.log(
+      "TIMETABLE ROWS:",
+      plan.timetable.length
+    );
+
+    return plan;
   } catch (error) {
-
-    console.error("===== JSON PARSE ERROR =====");
+    console.error(
+      "===== PLANNER AGENT ERROR ====="
+    );
     console.error(error);
-    console.error("Gemini returned:", text);
 
-    throw new Error("Gemini returned an invalid study plan format");
+    throw error;
   }
-
-  // Validate timetable
-  if (
-    !plan.timetable ||
-    !Array.isArray(plan.timetable) ||
-    plan.timetable.length === 0
-  ) {
-    throw new Error("Gemini did not generate a timetable");
-  }
-
-  console.log(
-    "===== TIMETABLE ROWS =====",
-    plan.timetable.length
-  );
-
-  return plan;
 };
 
 module.exports = plannerAgent;
+

@@ -1,6 +1,7 @@
+
 const StudentProfile = require("../models/StudentProfile");
 const QuizAttempt = require("../models/QuizAttempt");
-const StudyPlan = require("../models/StudyPlan");
+const StudyPlan = require("../models/studyPlan");
 const plannerAgent = require("../agents/plannerAgent");
 
 exports.generatePlan = async (req, res) => {
@@ -132,51 +133,98 @@ exports.generatePlan = async (req, res) => {
       console.log("Weakest Topic: No previous data");
     }
 
+    // Find previous study-plan tasks
+    const previousTasks = await StudyPlan.find({
+      user: userId,
+    }).sort({ createdAt: -1 });
+
+    const completedTasks = previousTasks.filter(
+      (task) => task.completed
+    );
+
+    const pendingTasks = previousTasks.filter(
+      (task) => !task.completed
+    );
+
+    console.log("===== STUDY TASK HISTORY =====");
+    console.log(
+      "Previous tasks:",
+      previousTasks.length
+    );
+    console.log(
+      "Completed tasks:",
+      completedTasks.length
+    );
+    console.log(
+      "Pending tasks:",
+      pendingTasks.length
+    );
+
+    const taskProgress = {
+      completedTasks: completedTasks.map((task) => ({
+        day: task.day,
+        subject: task.subject,
+        topic: task.topic,
+        task: task.task,
+      })),
+
+      pendingTasks: pendingTasks.map((task) => ({
+        day: task.day,
+        subject: task.subject,
+        topic: task.topic,
+        task: task.task,
+      })),
+    };
+
     console.log("===== CALLING GEMINI PLANNER =====");
 
     // Generate personalized study plan
     const plan = await plannerAgent(
-  profile,
-  weakestSubject,
-  weakestTopic
-);
+      profile,
+      weakestSubject,
+      weakestTopic,
+      taskProgress
+    );
 
-console.log("===== STUDY PLAN GENERATED SUCCESSFULLY =====");
+    console.log(
+      "===== STUDY PLAN GENERATED SUCCESSFULLY ====="
+    );
 
-// Remove the previous active study plan
-await StudyPlan.deleteMany({
-  user: userId,
-});
+    // Remove the previous active study plan
+    await StudyPlan.deleteMany({
+      user: userId,
+    });
 
-console.log("===== OLD STUDY PLAN REMOVED =====");
+    console.log("===== OLD STUDY PLAN REMOVED =====");
 
-// Convert Gemini timetable into database tasks
-const tasks = plan.timetable.map((item) => ({
-  user: userId,
-  day: item.day,
-  time: item.time,
-  subject: item.subject,
-  topic: item.topic,
-  task: item.task,
-  priority: item.priority,
-  completed: false,
-}));
+    // Convert Gemini timetable into database tasks
+    const tasks = plan.timetable.map((item) => ({
+      user: userId,
+      day: item.day,
+      time: item.time,
+      subject: item.subject,
+      topic: item.topic,
+      task: item.task,
+      priority: item.priority,
+      completed: false,
+    }));
 
-// Save the new 7-day study plan
-const savedTasks = await StudyPlan.insertMany(tasks);
+    // Save the new 7-day study plan
+    const savedTasks = await StudyPlan.insertMany(tasks);
 
-console.log(
-  "===== NEW STUDY PLAN SAVED ====="
-);
-console.log(
-  "Tasks saved:",
-  savedTasks.length
-);
+    console.log(
+      "===== NEW STUDY PLAN SAVED ====="
+    );
 
-res.json({
-  success: true,
-  plan,
-});
+    console.log(
+      "Tasks saved:",
+      savedTasks.length
+    );
+
+    res.json({
+      success: true,
+      plan,
+    });
   } catch (error) {
     console.error("===== PLANNER ERROR =====");
     console.error(error);

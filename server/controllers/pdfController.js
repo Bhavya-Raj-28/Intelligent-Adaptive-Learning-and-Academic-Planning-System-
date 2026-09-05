@@ -2,14 +2,16 @@ const fs = require("fs");
 const { PDFParse } = require("pdf-parse");
 const { GoogleGenAI } = require("@google/genai");
 
-
 const PDFDocument = require("../models/PDFDocument");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-// Create embedding for text
+// ======================================
+// CREATE EMBEDDING FOR TEXT
+// ======================================
+
 async function createEmbedding(text) {
   const response = await ai.models.embedContent({
     model: "gemini-embedding-001",
@@ -25,7 +27,10 @@ async function createEmbedding(text) {
   return response.embeddings[0].values;
 }
 
-// Split PDF text into chunks
+// ======================================
+// SPLIT PDF TEXT INTO CHUNKS
+// ======================================
+
 function createChunks(text, chunkSize = 1000) {
   const words = text.split(/\s+/);
   const chunks = [];
@@ -41,7 +46,10 @@ function createChunks(text, chunkSize = 1000) {
   return chunks;
 }
 
-// Calculate cosine similarity
+// ======================================
+// CALCULATE COSINE SIMILARITY
+// ======================================
+
 function cosineSimilarity(a, b) {
   let dot = 0;
   let magnitudeA = 0;
@@ -60,10 +68,9 @@ function cosineSimilarity(a, b) {
   return dot / (Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB));
 }
 
-
-// ===============================
+// ======================================
 // UPLOAD PDF
-// ===============================
+// ======================================
 
 exports.uploadPDF = async (req, res) => {
   try {
@@ -77,19 +84,21 @@ exports.uploadPDF = async (req, res) => {
     console.log("===== PDF UPLOAD =====");
     console.log("File:", req.file.originalname);
 
-  const pdfBuffer = fs.readFileSync(req.file.path);
+    const pdfBuffer = fs.readFileSync(req.file.path);
 
-const parser = new PDFParse({
-  data: pdfBuffer,
-});
+    const parser = new PDFParse({
+      data: pdfBuffer,
+    });
 
-const pdfData = await parser.getText();
+    const pdfData = await parser.getText();
 
-await parser.destroy();
+    await parser.destroy();
 
-const text = pdfData.text;
+    const text = pdfData.text;
 
-    fs.unlinkSync(req.file.path);
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
 
     if (!text.trim()) {
       return res.status(400).json({
@@ -130,13 +139,20 @@ const text = pdfData.text;
       fileName: document.fileName,
       chunks: chunks.length,
     });
-
   } catch (error) {
     console.error("===== PDF ERROR =====");
     console.error(error);
 
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
+    }
+
+    if (error.status === 429) {
+      return res.status(429).json({
+        success: false,
+        message:
+          "Gemini API quota exceeded while processing the PDF. Please try again later.",
+      });
     }
 
     res.status(500).json({
@@ -147,10 +163,9 @@ const text = pdfData.text;
   }
 };
 
-
-// ===============================
+// ======================================
 // ASK QUESTION ABOUT PDF
-// ===============================
+// ======================================
 
 exports.askPDF = async (req, res) => {
   try {
@@ -175,26 +190,32 @@ exports.askPDF = async (req, res) => {
       });
     }
 
-    // Embed the student's question
+    // ======================================
+    // EMBED STUDENT QUESTION
+    // ======================================
+
     let questionEmbedding;
 
-try {
-  questionEmbedding = await createEmbedding(question);
-} catch (error) {
-  console.error("EMBEDDING ERROR:", error);
+    try {
+      questionEmbedding = await createEmbedding(question);
+    } catch (error) {
+      console.error("EMBEDDING ERROR:", error);
 
-  if (error.status === 429) {
-    return res.status(429).json({
-      success: false,
-      message:
-        "Gemini embedding quota has been temporarily exceeded. Please wait a little and try again.",
-    });
-  }
+      if (error.status === 429) {
+        return res.status(429).json({
+          success: false,
+          message:
+            "Gemini embedding quota has been temporarily exceeded. Please wait and try again later.",
+        });
+      }
 
-  throw error;
-}
+      throw error;
+    }
 
-    // Compare question with every PDF chunk
+    // ======================================
+    // RANK PDF CHUNKS
+    // ======================================
+
     const rankedChunks = document.chunks
       .map((chunk) => ({
         text: chunk.text,
@@ -206,25 +227,30 @@ try {
       .sort((a, b) => b.score - a.score);
 
     // Take the 5 most relevant chunks
-   const topChunks = rankedChunks.slice(0, 5);
+    const topChunks = rankedChunks.slice(0, 5);
 
-console.log("===== RAG RETRIEVAL =====");
+    console.log("===== RAG RETRIEVAL =====");
 
-topChunks.forEach((chunk, index) => {
-  console.log(
-    `\n--- Chunk ${index + 1} | Similarity: ${chunk.score.toFixed(4)} ---`
-  );
+    topChunks.forEach((chunk, index) => {
+      console.log(
+        `\n--- Chunk ${index + 1} | Similarity: ${chunk.score.toFixed(
+          4
+        )} ---`
+      );
 
-  console.log(chunk.text.substring(0, 500));
-});
+      console.log(chunk.text.substring(0, 500));
+    });
 
-const relevantChunks = topChunks
-  .map((chunk) => chunk.text)
-  .join("\n\n");
+    const relevantChunks = topChunks
+      .map((chunk) => chunk.text)
+      .join("\n\n");
 
-console.log("=========================");
+    console.log("=========================");
 
-    // Ask Gemini using retrieved context
+    // ======================================
+    // CREATE GEMINI PROMPT
+    // ======================================
+
     const prompt = `
 You are an AI Tutor helping a university student understand their study material.
 
@@ -244,19 +270,81 @@ Instructions:
 - If the answer is not present in the provided context, clearly say that it was not found in the uploaded material.
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-    });
+    // ======================================
+    // ASK GEMINI
+    // ======================================
+
+    let response;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(
+          `===== GEMINI PDF ANSWER ATTEMPT ${attempt} =====`
+        );
+
+        response = await ai.models.generateContent({
+          model: "gemini-3.6-flash",
+          contents: prompt,
+        });
+
+        break;
+      } catch (error) {
+        console.error(
+          `Gemini PDF answer attempt ${attempt} failed:`,
+          error.status
+        );
+
+        // Gemini quota exceeded
+        if (error.status === 429) {
+          return res.status(429).json({
+            success: false,
+            message:
+              "The AI Tutor has reached the Gemini API quota limit. Please try again later.",
+          });
+        }
+
+        // Retry temporary Gemini server errors
+        if (error.status !== 503 || attempt === 3) {
+          throw error;
+        }
+
+        console.log(
+          "Gemini temporarily unavailable. Retrying in 3 seconds..."
+        );
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, 3000)
+        );
+      }
+    }
+
+    // ======================================
+    // CHECK GEMINI RESPONSE
+    // ======================================
+
+    if (!response || !response.text) {
+      throw new Error("Gemini returned an empty response");
+    }
+
+    // ======================================
+    // SEND ANSWER
+    // ======================================
 
     res.json({
       success: true,
       answer: response.text,
     });
-
   } catch (error) {
     console.error("===== PDF QUESTION ERROR =====");
     console.error(error);
+
+    if (error.status === 429) {
+      return res.status(429).json({
+        success: false,
+        message:
+          "The AI Tutor has reached the Gemini API quota limit. Please try again later.",
+      });
+    }
 
     res.status(500).json({
       success: false,
