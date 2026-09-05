@@ -37,15 +37,13 @@ export default function AITutor() {
       alert(
         `PDF uploaded successfully!\n${res.data.chunks} chunks created.`
       );
-
     } catch (err) {
       console.error("PDF Upload Error:", err);
 
       alert(
         err.response?.data?.message ||
-        "Failed to upload PDF."
+          "Failed to upload PDF."
       );
-
     } finally {
       setUploading(false);
     }
@@ -58,6 +56,23 @@ export default function AITutor() {
       setLoading(true);
       setAnswer("");
 
+      // Get logged-in student information
+      const storedUser = localStorage.getItem("user");
+
+      let userId = null;
+
+      if (storedUser) {
+        try {
+          const user = JSON.parse(storedUser);
+          userId = user.id || user._id;
+        } catch (error) {
+          console.error(
+            "Unable to read logged-in user:",
+            error
+          );
+        }
+      }
+
       // If a PDF has been uploaded, use RAG
       if (documentId) {
         const res = await API.post("/pdf/ask", {
@@ -68,23 +83,22 @@ export default function AITutor() {
         setAnswer(res.data.answer);
       }
 
-      // Otherwise use normal AI Tutor
+      // Otherwise use personalized AI Tutor
       else {
         const res = await API.post("/tutor/ask", {
           question: question.trim(),
+          userId,
         });
 
         setAnswer(res.data.answer);
       }
-
     } catch (err) {
       console.error("AI Tutor Error:", err);
 
       setAnswer(
         err.response?.data?.message ||
-        "Sorry, I couldn't get a response."
+          "Sorry, I couldn't get a response."
       );
-
     } finally {
       setLoading(false);
     }
@@ -92,7 +106,6 @@ export default function AITutor() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-10">
-
       <h1 className="text-4xl font-bold mb-8">
         🤖 AI Tutor
       </h1>
@@ -146,7 +159,6 @@ export default function AITutor() {
           </CardContent>
         </Card>
 
-
         {/* AI TUTOR SECTION */}
 
         <Card className="bg-slate-900 border-slate-800">
@@ -176,7 +188,9 @@ export default function AITutor() {
 
             <Button
               onClick={askAI}
-              disabled={loading || !question.trim()}
+              disabled={
+                loading || !question.trim()
+              }
             >
               {loading
                 ? "Thinking..."
