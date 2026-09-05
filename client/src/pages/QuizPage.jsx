@@ -4,10 +4,13 @@ import { Button } from "@/components/ui/button";
 import API from "../services/api";
 
 export default function QuizPage() {
-  const [questions, setQuestions] = useState([]);
-  const [selected, setSelected] = useState({});
-  const [score, setScore] = useState(null);
-  const [loading, setLoading] = useState(false);
+ const [questions, setQuestions] = useState([]);
+const [selected, setSelected] = useState({});
+const [score, setScore] = useState(null);
+const [loading, setLoading] = useState(false);
+
+const [quizSubject, setQuizSubject] = useState("");
+const [quizTopic, setQuizTopic] = useState("");
 
   async function generateQuiz() {
     try {
@@ -34,7 +37,13 @@ export default function QuizPage() {
       // Backend returns:
       // { success: true, quiz: { questions: [...] } }
 
-     const generatedQuestions = res.data.quiz?.questions || [];
+     const generatedQuiz = res.data.quiz;
+
+const generatedQuestions =
+  generatedQuiz?.questions || [];
+
+setQuizSubject(generatedQuiz?.subject || "General");
+setQuizTopic(generatedQuiz?.topic || "General");
 
 setQuestions(generatedQuestions);
 setLoading(false);
@@ -59,17 +68,50 @@ setLoading(false);
     });
   }
 
-  function submitQuiz() {
-    let correct = 0;
+  async function submitQuiz() {
+  let correct = 0;
 
-    questions.forEach((question, index) => {
-      if (selected[index] === question.answer) {
-        correct++;
-      }
+  questions.forEach((question, index) => {
+    if (selected[index] === question.answer) {
+      correct++;
+    }
+  });
+
+  // Keep showing the score immediately
+  setScore(correct);
+
+  // Save quiz result to backend
+  try {
+    const user = JSON.parse(localStorage.getItem("user"));
+
+    if (!user || !user.id) {
+      console.error("User information not found.");
+      return;
+    }
+
+    const response = await fetch("http://localhost:5000/api/quiz/submit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+  userId: user.id,
+  subject: quizSubject,
+  topic: quizTopic,
+  score: correct,
+  totalQuestions: questions.length,
+}),
     });
 
-    setScore(correct);
+    if (!response.ok) {
+      throw new Error("Failed to save quiz result");
+    }
+
+    console.log("Quiz result saved successfully.");
+  } catch (error) {
+    console.error("Error saving quiz result:", error);
   }
+}
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-10">
@@ -77,6 +119,24 @@ setLoading(false);
       <h1 className="text-4xl font-bold mb-8">
         📝 Adaptive Quiz
       </h1>
+
+      {questions.length > 0 && (
+  <div className="mb-6">
+    <p className="text-lg text-slate-300">
+      Subject:{" "}
+      <span className="font-semibold text-white">
+        {quizSubject}
+      </span>
+    </p>
+
+    <p className="text-lg text-slate-300">
+      Topic:{" "}
+      <span className="font-semibold text-white">
+        {quizTopic}
+      </span>
+    </p>
+  </div>
+)}
 
       {/* Generate button */}
       {questions.length === 0 && (
