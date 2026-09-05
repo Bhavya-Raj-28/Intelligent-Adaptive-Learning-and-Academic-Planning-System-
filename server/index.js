@@ -10,6 +10,7 @@ const pdfRoutes = require("./routes/pdfRoutes");
 const plannerRoutes = require("./routes/plannerRoutes");
 const quizRoutes = require("./routes/quizRoutes");
 const progressRoutes = require("./routes/progressRoutes");
+const studyPlanRoutes = require("./routes/studyPlanRoutes");
 dotenv.config({ path: "./.env" });
 console.log("MONGO_URI =", process.env.MONGO_URI);
 console.log(
@@ -44,6 +45,7 @@ app.use("/api/pdf", pdfRoutes);
 app.use("/api/planner", plannerRoutes);
 app.use("/api/quiz", quizRoutes);
 app.use("/api/progress", progressRoutes);
+app.use("/api/study-plan", studyPlanRoutes);
 // Test Route
 app.get("/", (req, res) => {
   res.json({
