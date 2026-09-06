@@ -1,4 +1,4 @@
-const StudyPlan = require("../models/StudyPlan");
+const StudyPlan = require("../models/studyPlan");
 
 exports.saveStudyPlan = async (req, res) => {
   try {
