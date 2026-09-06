@@ -16,7 +16,33 @@ exports.createProfile = async (req, res) => {
       examDate,
     } = req.body;
 
-    const profile = await StudentProfile.create({
+    // Check if the user already has a profile
+    let profile = await StudentProfile.findOne({ user });
+
+    if (profile) {
+      // Update existing profile
+      profile.department = department;
+      profile.semester = semester;
+      profile.goal = goal;
+      profile.studyHours = studyHours;
+      profile.availableFrom = availableFrom;
+      profile.availableUntil = availableUntil;
+      profile.learningStyle = learningStyle;
+      profile.weakSubjects = weakSubjects;
+      profile.subjects = subjects;
+      profile.examDate = examDate;
+
+      await profile.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Profile Updated Successfully",
+        profile,
+      });
+    }
+
+    // Create new profile if one doesn't exist
+    profile = await StudentProfile.create({
       user,
       department,
       semester,
@@ -37,6 +63,8 @@ exports.createProfile = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("PROFILE ERROR:", error);
+
     res.status(500).json({
       success: false,
       message: error.message,

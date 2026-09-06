@@ -3,7 +3,23 @@ function Button({ text, onClick, type = "button" }) {
     <button
       type={type}
       onClick={onClick}
-      className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition duration-300 shadow-lg"
+      className="
+        rounded-full
+        bg-gradient-to-r
+        from-blue-600
+        via-cyan-500
+        to-emerald-400
+        px-7
+        py-3
+        font-semibold
+        text-white
+        shadow-md
+        transition-all
+        duration-300
+        hover:-translate-y-0.5
+        hover:shadow-lg
+        active:translate-y-0
+      "
     >
       {text}
     </button>
