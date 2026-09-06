@@ -93,13 +93,19 @@ export default function AITutor() {
         setAnswer(res.data.answer);
       }
     } catch (err) {
-      console.error("AI Tutor Error:", err);
+  console.error("AI Tutor Error:", err);
 
-      setAnswer(
-        err.response?.data?.message ||
-          "Sorry, I couldn't get a response."
-      );
-    } finally {
+  if (err.response?.status === 429) {
+    setAnswer(
+      "⚠️ AI Tutor is temporarily unavailable because the Gemini API request quota has been reached. Please try again later."
+    );
+  } else {
+    setAnswer(
+      err.response?.data?.message ||
+        "Sorry, I couldn't get a response. Please try again."
+    );
+  }
+} finally {
       setLoading(false);
     }
   }

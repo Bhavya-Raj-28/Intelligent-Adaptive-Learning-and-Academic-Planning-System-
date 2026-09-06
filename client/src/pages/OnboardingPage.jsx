@@ -16,6 +16,8 @@ export default function OnboardingPage() {
   subjects: "",
   weakSubjects: "",
   studyHours: "",
+  availableFrom: "",
+  availableUntil: "",
   goal: "",
 });
 
@@ -38,6 +40,8 @@ await API.post("/profile/create", {
   semester: Number(student.semester),
   goal: student.goal,
   studyHours: Number(student.studyHours),
+  availableFrom: student.availableFrom,
+  availableUntil: student.availableUntil,
   learningStyle: "Visual",
 
   weakSubjects: student.weakSubjects
@@ -122,6 +126,22 @@ await API.post("/profile/create", {
               value={student.studyHours}
               onChange={handleChange}
             />
+
+            <Input
+  name="availableFrom"
+  placeholder="Available Study From (e.g. 5:00 PM)"
+  value={student.availableFrom}
+  onChange={handleChange}
+/>
+
+<Input
+  name="availableUntil"
+  placeholder="Available Study Until (e.g. 10:00 PM)"
+  value={student.availableUntil}
+  onChange={handleChange}
+/>
+
+
 
             <Input
               name="goal"

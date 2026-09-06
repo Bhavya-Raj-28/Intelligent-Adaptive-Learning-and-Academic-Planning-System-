@@ -22,6 +22,8 @@ const plannerAgent = async (
     : profile.weakSubjects || "Not specified";
 
   const studyHours = Number(profile.studyHours) || 2;
+  const availableFrom = profile.availableFrom || "5:00 PM";
+  const availableUntil = profile.availableUntil || "10:00 PM";
 
   const performanceInformation = `
 Previous quiz performance:
@@ -92,6 +94,8 @@ ${profile.goal || "Not specified"}
 Daily study hours:
 ${studyHours}
 
+Available study time:
+${availableFrom} - ${availableUntil}
 Learning style:
 ${profile.learningStyle || "Not specified"}
 
@@ -145,6 +149,18 @@ ADAPTIVE PLANNING RULES:
 16. If there is no previous quiz data, use the student's profile and weak subjects to decide priorities.
 
 17. If there is no previous task history, create the plan normally using the student's profile and quiz performance.
+18. Schedule study sessions ONLY within the student's available study time.
+
+19. Do NOT schedule study sessions before the available start time or after the available end time.
+
+20. The student's daily study hours indicate how much they want to study, while the available study time indicates when they are free to study.
+
+21. If the requested daily study hours exceed the available time window, do not schedule outside the availability window. Use the maximum feasible study time instead.
+
+22. Include reasonable breaks when creating multiple study sessions within the available time.
+
+23. Never assume that the student is free in the morning unless their available study time includes the morning.
+24. Every timetable time must fall completely between the specified available start and end times.
 
 You MUST create exactly 7 timetable rows.
 
@@ -192,7 +208,7 @@ Use exactly this structure:
   "timetable": [
     {
       "day": "Day 1",
-      "time": "8:00 AM - 10:00 AM",
+      "time": "5:00 PM - 9:00 PM",
       "subject": "Subject",
       "topic": "Specific Topic",
       "task": "Study task",
@@ -232,7 +248,10 @@ IMPORTANT:
 - Make topics specific.
 - Make tasks actionable.
 - Adapt the plan to the student's daily study hours.
+- Strictly respect the student's available study time.
+- Never schedule outside the specified availability window.
 - Consider the student's learning style.
+
 - Return ONLY JSON.
 `;
 
